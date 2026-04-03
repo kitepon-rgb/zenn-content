@@ -3,7 +3,7 @@ title: "サーバー管理をAIに丸ごと任せてみた話"
 emoji: "🖥"
 type: "tech"
 topics: ["claudecode", "サーバー管理", "自動化", "podman"]
-published: false
+published: true
 ---
 
 :::message
