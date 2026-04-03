@@ -3,7 +3,7 @@ title: "5年育てた自分専用Botを、SaaSにして売り出した話"
 emoji: "🎮"
 type: "tech"
 topics: ["claudecode", "discord", "saas", "stripe"]
-published: false
+published: true
 ---
 
 :::message
