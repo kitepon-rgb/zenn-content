@@ -1,9 +1,9 @@
 #!/usr/bin/env node
 // Zenn の英語自動翻訳記事を dev.to へ転載する。
-// 毎日 cron で起動し、時系列順(post-order.json)で「次の1本」だけを投稿する。
-// - 1実行につき最大1本（dev.to のレート制限よけ）
-// - 対象がまだ翻訳されていなければ何も投稿しない（時系列順を崩さない）
-// - 本文中のブログ内部リンクは、既に投稿済みなら dev.to のリンクへ貼りかえる
+// 毎日 cron で起動し、時系列順(post-order.json)で進める。1実行あたり:
+//   1) 次の1本を投稿（未翻訳なら投稿せず順番を保持）
+//   2) 投稿済み記事のうち、未解決だった内部リンクが解決できるものを1本だけ更新
+// dev.to のレート制限がきついため、書き込みは1実行あたり最大2回に抑える。
 import fs from "node:fs";
 import path from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -14,6 +14,7 @@ const ZENN_USER = "kitepon";
 const DEVTO_API = "https://dev.to/api/articles";
 const ZENN_FEED = `https://zenn.dev/${ZENN_USER}/feed?all=1`;
 const UA = "zenn-devto-crosspost (+https://github.com/kitepon-rgb/zenn-content)";
+const WRITE_GAP_MS = 5000; // 投稿と更新の間隔（レート制限よけ）
 
 // 本文中の内部リンクはブログ slug を使う。大半は Zenn のファイル名と一致するが、
 // 初期記事は slug が異なるため対応表で吸収する。
@@ -30,6 +31,11 @@ const REPO_ROOT = path.resolve(__dirname, "../..");
 const ARTICLES_DIR = path.join(REPO_ROOT, "articles");
 const STATE_FILE = path.join(REPO_ROOT, "crossposted-devto.json");
 const ORDER_FILE = path.join(REPO_ROOT, "post-order.json");
+
+const INTERNAL_LINK_RE =
+  /\]\(https:\/\/kitepon-rgb\.github\.io\/WebAICoding\/post\/([a-z0-9-]+)\/\)/g;
+
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
 const turndown = new TurndownService({
   headingStyle: "atx",
@@ -76,16 +82,22 @@ export function htmlToMarkdown(html) {
 }
 
 // 本文中のブログ内部リンクを、dev.to へ投稿済みの記事のリンクへ貼りかえる。
-// state は { zennSlug: devtoUrl }。まだ未投稿のリンク先は元のブログURLのまま残す。
+// state は { zennSlug: { url, id, pending } }。未投稿のリンク先は元のまま残す。
 export function rewriteInternalLinks(markdown, state) {
-  return markdown.replace(
-    /\]\(https:\/\/kitepon-rgb\.github\.io\/WebAICoding\/post\/([a-z0-9-]+)\/\)/g,
-    (whole, blogSlug) => {
-      const zennSlug = BLOG_TO_ZENN_SLUG[blogSlug] || blogSlug;
-      const url = state[zennSlug];
-      return url ? `](${url})` : whole;
-    },
-  );
+  return markdown.replace(INTERNAL_LINK_RE, (whole, blogSlug) => {
+    const zennSlug = BLOG_TO_ZENN_SLUG[blogSlug] || blogSlug;
+    const entry = state[zennSlug];
+    return entry && entry.url ? `](${entry.url})` : whole;
+  });
+}
+
+// 貼りかえ後の本文に残った内部リンクの Zenn slug 一覧（＝まだ未投稿のリンク先）
+export function unresolvedTargets(markdown) {
+  const out = new Set();
+  for (const m of markdown.matchAll(INTERNAL_LINK_RE)) {
+    out.add(BLOG_TO_ZENN_SLUG[m[1]] || m[1]);
+  }
+  return [...out];
 }
 
 // Zenn の topics を dev.to のタグ規則（英数小文字のみ・最大4件）に整える
@@ -203,9 +215,10 @@ async function fetchTranslatedArticle(slug) {
   return article;
 }
 
-async function postToDevto(payload, apiKey) {
-  const res = await fetch(DEVTO_API, {
-    method: "POST",
+// dev.to へ記事を作成(POST)/更新(PUT)する
+async function devtoRequest(method, url, payload, apiKey) {
+  const res = await fetch(url, {
+    method,
     headers: {
       "api-key": apiKey,
       "Content-Type": "application/json",
@@ -214,10 +227,101 @@ async function postToDevto(payload, apiKey) {
     body: JSON.stringify(payload),
   });
   const text = await res.text();
-  if (res.status !== 201) {
+  if (res.status !== 200 && res.status !== 201) {
     throw new Error(`dev.to ${res.status}: ${text.slice(0, 300)}`);
   }
   return JSON.parse(text);
+}
+
+// --- 1) 次の1本を投稿する。戻り値: "posted" | "holding" | "blocked" | "done"
+async function postNext(state, order, dryRun, apiKey) {
+  const orderSet = new Set(order);
+  const target = order.find((s) => !state[s]);
+  if (!target) {
+    console.log(`All ${order.length} articles already crossposted.`);
+    return "done";
+  }
+  console.log(`Next: ${target} (${Object.keys(state).length}/${order.length} done)`);
+
+  let article;
+  try {
+    article = await fetchTranslatedArticle(target);
+  } catch (e) {
+    console.error(`Fetch failed for ${target}: ${e.message}`);
+    return "blocked";
+  }
+  if (article.isTranslated !== true) {
+    console.log(`"${target}" is not translated on Zenn yet — holding chronological order.`);
+    return "holding";
+  }
+  if (!article.title || !article.bodyHtml) {
+    console.error(`"${target}" is translated but title/body is empty.`);
+    return "blocked";
+  }
+
+  const payload = buildPayload(article, readTopics(target), state);
+  const pending = unresolvedTargets(payload.article.body_markdown).filter((s) =>
+    orderSet.has(s),
+  );
+
+  if (dryRun) {
+    console.log(
+      `[dry-run] would post "${target}" — tags ${JSON.stringify(payload.article.tags)}, ` +
+        `${payload.article.body_markdown.length} chars, pending links: ${JSON.stringify(pending)}`,
+    );
+    return "posted";
+  }
+  try {
+    const created = await devtoRequest("POST", DEVTO_API, payload, apiKey);
+    state[target] = { url: created.url, id: created.id, pending };
+    saveState(state);
+    console.log(
+      `Posted "${target}" -> ${created.url}` +
+        (pending.length ? ` (pending links: ${pending.join(", ")})` : ""),
+    );
+    return "posted";
+  } catch (e) {
+    console.error(`Post failed for ${target}: ${e.message}`);
+    return "blocked";
+  }
+}
+
+// --- 2) 未解決リンクが全て解決できる投稿済み記事を1本だけ更新する
+async function fixupOneArticle(state, order, dryRun, apiKey) {
+  const orderSet = new Set(order);
+  const fixSlug = Object.keys(state).find(
+    (s) =>
+      (state[s].pending || []).length > 0 &&
+      state[s].pending.every((t) => state[t] && state[t].url),
+  );
+  if (!fixSlug) {
+    console.log("No link fixups ready.");
+    return;
+  }
+  console.log(`Link fixup ready: ${fixSlug} (pending: ${state[fixSlug].pending.join(", ")})`);
+  if (dryRun) {
+    console.log("[dry-run] would re-fetch and update the above article.");
+    return;
+  }
+  try {
+    await sleep(WRITE_GAP_MS);
+    const article = await fetchTranslatedArticle(fixSlug);
+    if (!article.bodyHtml) throw new Error("body empty on re-fetch");
+    const payload = buildPayload(article, readTopics(fixSlug), state);
+    const stillPending = unresolvedTargets(payload.article.body_markdown).filter((s) =>
+      orderSet.has(s),
+    );
+    await devtoRequest("PUT", `${DEVTO_API}/${state[fixSlug].id}`, payload, apiKey);
+    state[fixSlug].pending = stillPending;
+    saveState(state);
+    console.log(
+      `Updated "${fixSlug}" — internal links now point to dev.to.` +
+        (stillPending.length ? ` Still pending: ${stillPending.join(", ")}` : ""),
+    );
+  } catch (e) {
+    // 投稿自体は成功しているのでジョブは失敗扱いにしない（次回の実行で再試行）
+    console.error(`Link fixup failed for ${fixSlug}: ${e.message}`);
+  }
 }
 
 async function main() {
@@ -230,57 +334,15 @@ async function main() {
 
   const state = loadState();
   const order = await getChronologicalOrder();
-  const target = order.find((s) => !state[s]);
 
-  if (!target) {
-    console.log(`All ${order.length} articles already crossposted.`);
-    return;
-  }
-  console.log(
-    `Next in chronological order: ${target} (${Object.keys(state).length}/${order.length} done)`,
-  );
-
-  let article;
-  try {
-    article = await fetchTranslatedArticle(target);
-  } catch (e) {
-    console.error(`Fetch failed for ${target}: ${e.message}`);
+  const result = await postNext(state, order, dryRun, apiKey);
+  if (result === "blocked") {
+    // 投稿がレート制限/エラーで失敗。更新も同じく弾かれるので今回はここで終了
     process.exitCode = 1;
+    console.log("Skipping link fixup (posting was blocked).");
     return;
   }
-
-  if (article.isTranslated !== true) {
-    console.log(
-      `"${target}" is not translated on Zenn yet. Nothing posted — holding chronological order until it is.`,
-    );
-    return;
-  }
-  if (!article.title || !article.bodyHtml) {
-    console.error(`"${target}" is translated but title/body is empty.`);
-    process.exitCode = 1;
-    return;
-  }
-
-  const payload = buildPayload(article, readTopics(target), state);
-
-  if (dryRun) {
-    console.log(`[dry-run] would post "${target}"`);
-    console.log(`  title: ${payload.article.title}`);
-    console.log(`  tags: ${JSON.stringify(payload.article.tags)}`);
-    console.log(`  description: ${payload.article.description}`);
-    console.log(`  body_markdown: ${payload.article.body_markdown.length} chars`);
-    return;
-  }
-
-  try {
-    const created = await postToDevto(payload, apiKey);
-    state[target] = created.url;
-    saveState(state);
-    console.log(`Posted "${target}" -> ${created.url}`);
-  } catch (e) {
-    console.error(`Post failed for ${target}: ${e.message}`);
-    process.exitCode = 1;
-  }
+  await fixupOneArticle(state, order, dryRun, apiKey);
 }
 
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
