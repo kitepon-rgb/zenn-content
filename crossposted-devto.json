@@ -1,1 +1,11 @@
-{}
+{
+  "claude-code-half-features": {
+    "url": "https://dev.to/quolu/i-realized-i-was-only-using-half-of-what-claude-code-has-to-offer-38bo",
+    "id": 3716911,
+    "pending": [
+      "oltranslator-app",
+      "livetr-realtime-translator",
+      "claude-research-from-papers"
+    ]
+  }
+}
