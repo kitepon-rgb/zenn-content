@@ -12,5 +12,10 @@
       "livetr-realtime-translator",
       "claude-research-from-papers"
     ]
+  },
+  "claude-max-plan-review": {
+    "url": "https://dev.to/quolu/what-exactly-changes-with-the-claude-max-plan-4kgb",
+    "id": 3729013,
+    "pending": []
   }
 }
