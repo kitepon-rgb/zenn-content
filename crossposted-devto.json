@@ -17,5 +17,12 @@
     "url": "https://dev.to/quolu/what-exactly-changes-with-the-claude-max-plan-4kgb",
     "id": 3729013,
     "pending": []
+  },
+  "oltranslator-app": {
+    "url": "https://dev.to/quolu/oltranslator-a-real-time-screen-translation-app-for-windows-1l52",
+    "id": 3736536,
+    "pending": [
+      "livetr-realtime-translator"
+    ]
   }
 }
