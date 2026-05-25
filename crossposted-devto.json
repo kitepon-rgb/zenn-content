@@ -18,11 +18,16 @@
     "id": 3729013,
     "pending": []
   },
+  "livetr-realtime-translator": {
+    "url": "https://dev.to/quolu/livetr-a-real-time-english-to-japanese-audio-translation-app-for-videos-1lek",
+    "id": 3744290,
+    "pending": [
+      "claude-research-from-papers"
+    ]
+  },
   "oltranslator-app": {
     "url": "https://dev.to/quolu/oltranslator-a-real-time-screen-translation-app-for-windows-1l52",
     "id": 3736536,
-    "pending": [
-      "livetr-realtime-translator"
-    ]
+    "pending": []
   }
 }
