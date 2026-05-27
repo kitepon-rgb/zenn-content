@@ -9,6 +9,11 @@
     "id": 3716911,
     "pending": []
   },
+  "claude-code-ssh-deploy": {
+    "url": "https://dev.to/quolu/how-allowing-claude-to-access-my-server-via-ssh-simplified-deployment-dramatically-12j8",
+    "id": 3760063,
+    "pending": []
+  },
   "claude-max-plan-review": {
     "url": "https://dev.to/quolu/what-exactly-changes-with-the-claude-max-plan-4kgb",
     "id": 3729013,
@@ -22,9 +27,7 @@
   "livetr-realtime-translator": {
     "url": "https://dev.to/quolu/livetr-a-real-time-english-to-japanese-audio-translation-app-for-videos-1lek",
     "id": 3744290,
-    "pending": [
-      "claude-research-from-papers"
-    ]
+    "pending": []
   },
   "oltranslator-app": {
     "url": "https://dev.to/quolu/oltranslator-a-real-time-screen-translation-app-for-windows-1l52",
