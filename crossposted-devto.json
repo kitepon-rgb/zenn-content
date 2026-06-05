@@ -73,5 +73,10 @@
     "url": "https://dev.to/quolu/87-of-my-context-was-garbage-how-i-optimized-claude-code-token-usage-534k",
     "id": 3815133,
     "pending": []
+  },
+  "throughline-declare-over-detect": {
+    "url": "https://dev.to/quolu/why-i-gave-up-on-automatic-detection-for-resuming-sessions-in-claude-code-3bj0",
+    "id": 3823199,
+    "pending": []
   }
 }
