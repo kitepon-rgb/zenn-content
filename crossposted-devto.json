@@ -74,6 +74,11 @@
     "id": 3736536,
     "pending": []
   },
+  "spotter-release": {
+    "url": "https://dev.to/quolu/i-had-74-daemons-running-because-i-made-one-claude-audit-another-for-missed-tool-calls-5b6m",
+    "id": 3844307,
+    "pending": []
+  },
   "throughline-context-diet": {
     "url": "https://dev.to/quolu/87-of-my-context-was-garbage-how-i-optimized-claude-code-token-usage-534k",
     "id": 3815133,
