@@ -34,6 +34,11 @@
     "id": 3837751,
     "pending": []
   },
+  "claude-audit-seesaw": {
+    "url": "https://dev.to/quolu/how-i-fixed-the-infinite-feedback-loop-when-auditing-project-plans-with-claude-4gh",
+    "id": 3861526,
+    "pending": []
+  },
   "claude-augment-trilogy": {
     "url": "https://dev.to/quolu/stop-telling-claude-to-be-careful-reinforcing-it-from-the-outside-with-3-tools-2k8k",
     "id": 3852287,
