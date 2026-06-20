@@ -52,6 +52,14 @@ LiveTR は翻訳をクラウドのエンジン（DeepL / Google / Azure / Amazon
 
 ---
 
+## ダウンロード
+
+LiveTR は BOOTH で販売中。Windows + NVIDIA GPU 環境で、英語の動画や配信をリアルタイムに日本語化できる。字幕オーバーレイと、話者の声色を反映した日本語読み上げ付き。
+
+[LiveTR — リアルタイム音声翻訳アプリ（BOOTH）](https://qo-shop.booth.pm/items/8134987)
+
+---
+
 ## 関連記事
 
 - [LiveTR — 動画の英語音声をリアルタイムで日本語にするアプリ](https://kitepon-rgb.github.io/WebAICoding/post/livetr-app/) — このアプリそのものの紹介。音声認識・翻訳・字幕・読み上げの全体像
